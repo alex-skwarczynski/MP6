@@ -10,7 +10,7 @@
 #define SafeBuffer_h
 
 #include <stdio.h>
-#include <queue>
+#include <list>
 #include <string>
 #include <pthread.h>
 
@@ -24,6 +24,8 @@ class SafeBuffer {
 		or std::queue, because std::vector is very inefficient when
 		being modified from the front.
 	*/
+	std::list<std::string> buffer;
+	pthread_mutex_t mutex;
 	
 public:
     SafeBuffer();
