@@ -190,6 +190,17 @@ struct request_data
 	SafeBuffer * request_buffer;
 };
 
+struct worker_data
+{
+	std::string body;
+	int num;
+	SafeBuffer * request_buffer;
+	std::vector<int> *freq1;
+	std::vector<int> *freq2;
+    std::vector<int> *freq3;
+    RequestChannel *chan;
+};
+
 
 void* request_thread_function(void* arg) {
 	struct request_data *data;
@@ -231,9 +242,38 @@ void* worker_thread_function(void* arg) {
 		RequestChannel you construct regardless of
 		whether you used "new" for it.
      */
+	struct worker_data *data;
+	data = (struct worker_data *) arg;
+	std::string body = data->body;
+	int num = data->num;
+	SafeBuffer* s_buffer = data->request_buffer;
+	std::vector<int> *fq1 = data->freq1;
+	std::vector<int> *fq2 = data->freq2;
+	std::vector<int> *fq3 = data->freq3;
+	RequestChannel *chan = data->chan;
+
+	std::string s = chan->send_request("newthread");
+    RequestChannel *workerChannel = new RequestChannel(s, RequestChannel::CLIENT_SIDE);
 
     while(true) {
+		std::string request = s_buffer->retrieve_front();
+        std::string response = workerChannel->send_request(request);
 
+        if(request == "data John Smith") {
+            fq1->at(stoi(response) / 10) += 1;
+        }
+        else if(request == "data Jane Smith") {
+            fq2->at(stoi(response) / 10) += 1;
+        }
+        else if(request == "data Joe Smith") {
+            fq3->at(stoi(response) / 10) += 1;
+        }
+       	else if(request == "quit") {
+            delete workerChannel;
+            break;
+        }
+
+    	
     }
 }
 
@@ -378,9 +418,32 @@ int main(int argc, char * argv[]) {
         std::string s = chan->send_request("newthread");
         RequestChannel *workerChannel = new RequestChannel(s, RequestChannel::CLIENT_SIDE);
 
-        while(true) {
-            //std::string request = request_buffer.front();
-            //request_buffer.pop_front();
+        pthread_t worker_threads[3];
+		struct worker_data worker_args[3];
+
+		worker_args[0].body = "data John Smith";
+		worker_args[1].body = "data Jane Smith";
+		worker_args[2].body = "data Joe Smith";
+
+		for(int i = 0; i < w; i++)
+		{
+			worker_args[i].num = w;
+			worker_args[i].request_buffer = &request_buffer;
+			worker_args[i].freq1 = &john_frequency_count;
+			worker_args[i].freq2 = &jane_frequency_count;
+			worker_args[i].freq3 = &joe_frequency_count;
+			worker_args[i].chan = chan;
+			pthread_create(&worker_threads[i], NULL, 
+				worker_thread_function, (void *)&worker_args[i]);
+		}
+		for (int i = 0; i < w; i++)
+		{
+			pthread_join(worker_threads[i], NULL);
+		}
+
+        /*while(true) {
+            std::string request = request_buffer.front();
+            request_buffer.pop_front();
 			std::string request = request_buffer.retrieve_front();
             std::string response = workerChannel->send_request(request);
 
@@ -397,7 +460,9 @@ int main(int argc, char * argv[]) {
                 delete workerChannel;
                 break;
             }
-        }
+        }*/
+
+
 
 /*--------------------------------------------------------------------------*/
 /*  END CRITICAL SECTION    */
