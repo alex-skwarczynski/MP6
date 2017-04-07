@@ -56,7 +56,7 @@
 #include <pthread.h>
 
 #include "reqchannel.h"
-//#include "SafeBuffer.h"
+#include "SafeBuffer.h"
 
 /*
 	You are allowed to add a namespace declaration if you
@@ -183,8 +183,20 @@ std::string make_histogram_table(std::string name1, std::string name2,
 	return tablebuilder.str();
 }
 
+struct request_data
+{
+	std::string body;
+	int num;
+	SafeBuffer * request_buffer;
+};
+
 
 void* request_thread_function(void* arg) {
+	struct request_data *data;
+	data = (struct request_data *) arg;
+	std::string body = data->body;
+	int num = data->num;
+	SafeBuffer* request_buffer = data->request_buffer;
 	/*
 		Fill in this function.
 
@@ -199,8 +211,8 @@ void* request_thread_function(void* arg) {
 		create 3 copies of this function, one for each "patient".
 	 */
 
-	for(;;) {
-
+	for(int i = 0; i < num; i++) {
+		request_buffer->push_back(body);
 	}
 }
 
@@ -281,8 +293,8 @@ int main(int argc, char * argv[]) {
 		 	of std::list for the request_buffer.
          */
 
-		//SafeBuffer request_buffer;
-		std::list<std::string> request_buffer;
+		SafeBuffer request_buffer;
+		// std::list<std::string> request_buffer;
         std::vector<int> john_frequency_count(10, 0);
         std::vector<int> jane_frequency_count(10, 0);
         std::vector<int> joe_frequency_count(10, 0);
@@ -323,11 +335,33 @@ int main(int argc, char * argv[]) {
 
         std::cout << "Populating request buffer... ";
         fflush(NULL);
+
+		pthread_t request_threads[3];
+		struct request_data request_args[3];
+
+		request_args[0].body = "data John Smith";
+		request_args[1].body = "data Jane Smith";
+		request_args[2].body = "data Joe Smith";
+
+		for (int i = 0; i < 3; i++)
+		{
+			request_args[i].num = n;
+			request_args[i].request_buffer = &request_buffer;
+			pthread_create(&request_threads[i], NULL, 
+				request_thread_function, (void *)&request_args[i]);
+		}
+		for (int i = 0; i < 3; i++)
+		{
+			pthread_join(request_threads[i], NULL);
+		}
+
+/*
         for(int i = 0; i < n; ++i) {
             request_buffer.push_back("data John Smith");
             request_buffer.push_back("data Jane Smith");
             request_buffer.push_back("data Joe Smith");
         }
+*/
         std::cout << "done." << std::endl;
 
         std::cout << "Pushing quit requests... ";
@@ -345,8 +379,9 @@ int main(int argc, char * argv[]) {
         RequestChannel *workerChannel = new RequestChannel(s, RequestChannel::CLIENT_SIDE);
 
         while(true) {
-            std::string request = request_buffer.front();
-            request_buffer.pop_front();
+            //std::string request = request_buffer.front();
+            //request_buffer.pop_front();
+			std::string request = request_buffer.retrieve_front();
             std::string response = workerChannel->send_request(request);
 
             if(request == "data John Smith") {
