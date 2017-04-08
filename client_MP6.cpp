@@ -190,17 +190,6 @@ struct request_data
 	SafeBuffer * request_buffer;
 };
 
-struct worker_data
-{
-	std::string body;
-	int num;
-	SafeBuffer * request_buffer;
-	std::vector<int> *freq1;
-	std::vector<int> *freq2;
-    std::vector<int> *freq3;
-    RequestChannel *chan;
-};
-
 
 void* request_thread_function(void* arg) {
 	struct request_data *data;
@@ -227,6 +216,15 @@ void* request_thread_function(void* arg) {
 	}
 }
 
+struct worker_data
+{
+	SafeBuffer * request_buffer;
+	std::vector<int> *freq1;
+	std::vector<int> *freq2;
+    std::vector<int> *freq3;
+    RequestChannel *chan;
+};
+
 void* worker_thread_function(void* arg) {
     /*
 		Fill in this function. 
@@ -244,8 +242,6 @@ void* worker_thread_function(void* arg) {
      */
 	struct worker_data *data;
 	data = (struct worker_data *) arg;
-	std::string body = data->body;
-	int num = data->num;
 	SafeBuffer* s_buffer = data->request_buffer;
 	std::vector<int> *fq1 = data->freq1;
 	std::vector<int> *fq2 = data->freq2;
@@ -272,8 +268,6 @@ void* worker_thread_function(void* arg) {
             delete workerChannel;
             break;
         }
-
-    	
     }
 }
 
@@ -395,13 +389,6 @@ int main(int argc, char * argv[]) {
 			pthread_join(request_threads[i], NULL);
 		}
 
-/*
-        for(int i = 0; i < n; ++i) {
-            request_buffer.push_back("data John Smith");
-            request_buffer.push_back("data Jane Smith");
-            request_buffer.push_back("data Joe Smith");
-        }
-*/
         std::cout << "done." << std::endl;
 
         std::cout << "Pushing quit requests... ";
@@ -415,19 +402,16 @@ int main(int argc, char * argv[]) {
 		/* START TIMER HERE */
 		/*-------------------------------------------*/
 
-        std::string s = chan->send_request("newthread");
-        RequestChannel *workerChannel = new RequestChannel(s, RequestChannel::CLIENT_SIDE);
+		uint64_t time_diff;
+		struct timespec start, end;
 
-        pthread_t worker_threads[3];
-		struct worker_data worker_args[3];
+		clock_gettime(CLOCK_MONOTONIC, &start);
 
-		worker_args[0].body = "data John Smith";
-		worker_args[1].body = "data Jane Smith";
-		worker_args[2].body = "data Joe Smith";
+        pthread_t worker_threads[w];
+		struct worker_data worker_args[w];
 
 		for(int i = 0; i < w; i++)
 		{
-			worker_args[i].num = w;
 			worker_args[i].request_buffer = &request_buffer;
 			worker_args[i].freq1 = &john_frequency_count;
 			worker_args[i].freq2 = &jane_frequency_count;
@@ -441,27 +425,11 @@ int main(int argc, char * argv[]) {
 			pthread_join(worker_threads[i], NULL);
 		}
 
-        /*while(true) {
-            std::string request = request_buffer.front();
-            request_buffer.pop_front();
-			std::string request = request_buffer.retrieve_front();
-            std::string response = workerChannel->send_request(request);
+		clock_gettime(CLOCK_MONOTONIC, &end);
 
-            if(request == "data John Smith") {
-                john_frequency_count.at(stoi(response) / 10) += 1;
-            }
-            else if(request == "data Jane Smith") {
-                jane_frequency_count.at(stoi(response) / 10) += 1;
-            }
-            else if(request == "data Joe Smith") {
-                joe_frequency_count.at(stoi(response) / 10) += 1;
-            }
-            else if(request == "quit") {
-                delete workerChannel;
-                break;
-            }
-        }*/
+		time_diff = 1000000000L * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
 
+		std::cout << "Elapsed time: " << (unsigned long long) time_diff / 1000000L << " microseconds." << std::endl;
 
 
 /*--------------------------------------------------------------------------*/
